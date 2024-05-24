@@ -7,7 +7,7 @@ import mediapipe as mp
 
 # Inicializar o detector de mãos do MediaPipe
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(static_image_mode=True, max_num_hands=2, min_detection_confidence=0.5)
+hands = mp_hands.Hands(static_image_mode=True, max_num_hands=2, min_detection_confidence=0.7)  # Aumentar a confiança mínima
 
 # Função para detectar mãos em uma imagem
 def detect_hands(image):
@@ -18,7 +18,7 @@ def detect_hands(image):
             mp.solutions.drawing_utils.draw_landmarks(
                 image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
     
-    return image
+    return image, results.multi_hand_landmarks  # Retornar também os marcos das mãos detectadas
 
 # Carregar imagens de referência
 known_hands = []
@@ -31,7 +31,7 @@ for label in labels:
         for image in os.listdir(dir_path):
             image_path = os.path.join(dir_path, image)
             hand_image = cv2.imread(image_path)
-            hand_image = detect_hands(hand_image)
+            hand_image, _ = detect_hands(hand_image)  # Ignorar os marcos das mãos das imagens de referência
             known_hands.append(hand_image)
             known_labels.append(label)
 
@@ -69,7 +69,23 @@ video = cv2.VideoCapture(0)
 
 while True:
     _, img = video.read()
-    img = detect_hands(img)
+    img, hand_landmarks = detect_hands(img)
+
+    if hand_landmarks:  # Verificar se há mãos detectadas
+        # Pré-processar a imagem da câmera
+        img_encoded = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_encoded = cv2.resize(img_encoded, (160, 160))
+        img_encoded = np.expand_dims(img_encoded, axis=0) / 255.0
+
+        # Fazer a classificação
+        prediction = model.predict(img_encoded)
+        predicted_label = labels[np.argmax(prediction)]
+
+        # Exibir a letra prevista
+        cv2.putText(img, f"Letra: {predicted_label}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    else:
+        # Não exibir nada se não houver mãos detectadas
+        pass
 
     cv2.imshow("Resultado", img)
     if cv2.waitKey(1) == 27:
